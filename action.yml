@@ -1,0 +1,48 @@
+name: "Deploy to A.D.S. Games"
+description: "Deploy files to storage bucket, and send a release message"
+inputs:
+  project-id:
+    description: "A.D.S. Games Game Name"
+    required: true
+  version:
+    description: "Version to Release"
+    required: true
+  bucket-access-key:
+    description: "Access key for accessing S3"
+    required: true
+  bucket-secret-key:
+    description: "Secret key for accessing S3"
+    required: true
+  build-dir:
+    description: "Folder to upload"
+    required: true
+  platform:
+    description: "Game Platform"
+    required: true
+runs:
+  using: "composite"
+  env:
+    BUCKET: ads-games
+    REGION: us-east-1
+    SITE_URL: https://adsgames.xyz
+  steps:
+    - name: Set up S3cmd cli tool
+      uses: s3-actions/s3cmd@v0
+      with:
+        cluster: us-east-1
+        access_key: ${{ inputs.bucket-access-key }}
+        secret_key: ${{ inputs.bucket-secret-key }}
+
+    - name: Copy to S3
+      run: s3cmd put --recursive ${{ inputs.build-dir }}/* s3://${{ env.BUCKET }}/games/${{ inputs.project }}/${{ inputs.version }}/
+
+    - name: Notify A.D.S. Games
+      run: |
+        curl -d '{ \
+            "version":"${{ inputs.version }}", \
+            "platform":"${{ inputs.platform }}", \
+            "url":"https://${{ env.BUCKET }}.${{ env.REGION }}.linodeobjects.com/games/${{ inputs.project }}/${{ inputs.version }}/index.html" \
+          }' \
+          -H "Content-Type: application/json" \
+          -H "x-api-key: ${{ secrets.ADSGAMES_API_KEY }}" \
+          -X POST ${{ env.SITE_URL }}/api/release/${{ inputs.project }}
