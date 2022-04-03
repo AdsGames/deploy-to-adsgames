@@ -27,3 +27,7 @@ bucket-access-key
 bucket-secret-key
 
 > Secret key for the bucket to deploy to
+
+entry
+
+> Index file to serve (web builds only) (i.e. index.html)
