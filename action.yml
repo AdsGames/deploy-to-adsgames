@@ -7,7 +7,7 @@ inputs:
     required: true
   version:
     description: "Version to Release"
-    required: true
+    required: false
   bucket-access-key:
     description: "Access key for accessing S3"
     required: true
@@ -17,6 +17,7 @@ inputs:
   build-dir:
     description: "Folder to upload"
     required: true
+    default: build/
   platform:
     description: "Game Platform"
     required: true
@@ -48,3 +49,4 @@ runs:
         ENTRY: ${{ inputs.entry }}
         BUILD_DIR: ${{ inputs.build-dir }}
         API_KEY: ${{ inputs.api-key }}
+        BUILD_COMMAND: ${{ inputs.build-command }}

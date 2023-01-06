@@ -1,8 +1,8 @@
 #!/bin/bash
 
 if [ -z "${VERSION}" ]; then
-  echo "Missing env VERSION"
-  exit 1
+  echo "No version providing, using git tag"
+  VERSION=$(git describe --tags --always)
 fi
 
 if [ -z "${PLATFORM}" ]; then
