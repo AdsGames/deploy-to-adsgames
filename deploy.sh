@@ -31,7 +31,7 @@ if [ -z "${BUILD_DIR}" ]; then
 fi
 
 BUCKET="ads-games"
-SITE_URL="https://www.adsgames.xyz"
+API_URL="https://api.adsgames.net"
 REGION="us-east-1"
 ZIP_NAME="${PROJECT_ID}-${VERSION}.zip"
 
@@ -66,7 +66,7 @@ OUTPUT=$(
     -d "${DATA}" \
     -H "Content-Type: application/json" \
     -H "x-api-key: ${API_KEY}" \
-    "${SITE_URL}/api/release/${PROJECT_ID}"
+    "${API_URL}/games/${PROJECT_ID}/hooks/release"
 )
 
 # Parse output
