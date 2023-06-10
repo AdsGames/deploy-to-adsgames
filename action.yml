@@ -33,9 +33,10 @@ runs:
   using: "composite"
   steps:
     - name: Set up S3cmd cli tool
-      uses: s3-actions/s3cmd@v0
+      uses: s3-actions/s3cmd@v1.5.0
       with:
-        cluster: us-east-1
+        provider: linode
+        region: us-east-1
         access_key: ${{ inputs.bucket-access-key }}
         secret_key: ${{ inputs.bucket-secret-key }}
 
