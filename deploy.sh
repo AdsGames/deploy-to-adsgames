@@ -54,14 +54,14 @@ fi
 if [ "${PLATFORM}" = "WEB" ]
 then
   echo -e "Deploying web build"
-  s3cmd put --guess-mime-type --recursive --acl-public ${BUILD_DIR}/* s3://${BUCKET}/games/${PROJECT_ID}/${VERSION}/
+  s3cmd sync --no-mime-magic --guess-mime-type --acl-public ${BUILD_DIR} s3://${BUCKET}/games/${PROJECT_ID}/${VERSION}/
   URL="${URL}/${VERSION}/${ENTRY}"
 else
   echo -e "Deploying downloadable build"
   cd ${BUILD_DIR}
   zip -r ../${ZIP_NAME} .
   cd ../
-  s3cmd put --guess-mime-type --acl-public ${ZIP_NAME} s3://${BUCKET}/games/${PROJECT_ID}/
+  s3cmd put --no-mime-magic --guess-mime-type --acl-public ${ZIP_NAME} s3://${BUCKET}/games/${PROJECT_ID}/
   URL="${URL}/${ZIP_NAME}"
 fi
 
