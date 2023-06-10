@@ -36,20 +36,32 @@ REGION="us-east-1"
 ZIP_NAME="${PROJECT_ID}-${VERSION}.zip"
 
 # Base url
-URL="https://${BUCKET}.${REGION}.linodeobjects.com/games/${PROJECT_ID}/"
+URL="https://${BUCKET}.${REGION}.linodeobjects.com/games/${PROJECT_ID}"
+
+# Lookup game id
+OUTPUT=$(curl "${API_URL}/games?slug=${PROJECT_ID}")
+
+# Parse output
+GAME_ID=$(echo $OUTPUT | jq -r .[0].id)
+
+# Ensure exists
+if [ -z "${GAME_ID}" ]; then
+  echo "Game not found"
+  exit 1
+fi
 
 # Deploy to s3
 if [ "${PLATFORM}" = "WEB" ]
 then
   echo -e "Deploying web build"
-  s3cmd put --recursive --acl-public ${BUILD_DIR}/* s3://${BUCKET}/games/${PROJECT_ID}/${VERSION}/
+  s3cmd put --guess-mime-type --recursive --acl-public ${BUILD_DIR}/* s3://${BUCKET}/games/${PROJECT_ID}/${VERSION}/
   URL="${URL}/${VERSION}/${ENTRY}"
 else
   echo -e "Deploying downloadable build"
   cd ${BUILD_DIR}
   zip -r ../${ZIP_NAME} .
   cd ../
-  s3cmd put --acl-public ${ZIP_NAME} s3://${BUCKET}/games/${PROJECT_ID}/
+  s3cmd put --guess-mime-type --acl-public ${ZIP_NAME} s3://${BUCKET}/games/${PROJECT_ID}/
   URL="${URL}/${ZIP_NAME}"
 fi
 
@@ -57,7 +69,7 @@ fi
 DATA="{ \
   \"version\":\"${VERSION}\", \
   \"platform\":\"${PLATFORM}\", \
-  \"url\":\"https://${BUCKET}.${REGION}.linodeobjects.com/games/${PROJECT_ID}/${VERSION}/index.html\" \
+  \"url\":\"${URL}\" \
 }"
 
 # Send payload
@@ -66,7 +78,7 @@ OUTPUT=$(
     -d "${DATA}" \
     -H "Content-Type: application/json" \
     -H "x-api-key: ${API_KEY}" \
-    "${API_URL}/games/${PROJECT_ID}/hooks/release"
+    "${API_URL}/games/${GAME_ID}/hooks/release"
 )
 
 # Parse output
