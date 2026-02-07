@@ -38,18 +38,6 @@ ZIP_NAME="${PROJECT_ID}-${VERSION}.zip"
 # Base url
 URL="https://${BUCKET}.${REGION}.linodeobjects.com/games/${PROJECT_ID}"
 
-# Lookup game id
-OUTPUT=$(curl "${API_URL}/games?slug=${PROJECT_ID}")
-
-# Parse output
-GAME_ID=$(echo $OUTPUT | jq -r .[0].id)
-
-# Ensure exists
-if [ -z "${GAME_ID}" ]; then
-  echo "Game not found"
-  exit 1
-fi
-
 # Deploy to s3
 if [ "${PLATFORM}" = "WEB" ]
 then
@@ -67,7 +55,7 @@ fi
 
 # Build payload
 DATA="{ \
-  \"gameId\":\"${GAME_ID}\", \
+  \"gameId\":\"${PROJECT_ID}\", \
   \"version\":\"${VERSION}\", \
   \"platform\":\"${PLATFORM}\", \
   \"url\":\"${URL}\" \
@@ -83,11 +71,11 @@ OUTPUT=$(
 )
 
 # Parse output
-SUCCESS=$(echo $OUTPUT | jq -r .success)
+STATUS=$(echo $OUTPUT | jq -r .status)
 MESSAGE=$(echo $OUTPUT | jq -r .message)
 
 echo $MESSAGE
 
-if [ "$SUCCESS" != "true" ]; then
+if [ "$STATUS" != "201" ]; then
   exit 1
 fi
