@@ -31,7 +31,7 @@ if [ -z "${BUILD_DIR}" ]; then
 fi
 
 BUCKET="ads-games"
-API_URL="https://api.adsgames.net"
+API_URL="https://www.adsgames.net"
 REGION="us-east-1"
 ZIP_NAME="${PROJECT_ID}-${VERSION}.zip"
 
@@ -67,6 +67,7 @@ fi
 
 # Build payload
 DATA="{ \
+  \"gameId\":\"${GAME_ID}\", \
   \"version\":\"${VERSION}\", \
   \"platform\":\"${PLATFORM}\", \
   \"url\":\"${URL}\" \
@@ -78,7 +79,7 @@ OUTPUT=$(
     -d "${DATA}" \
     -H "Content-Type: application/json" \
     -H "x-api-key: ${API_KEY}" \
-    "${API_URL}/games/${GAME_ID}/hooks/release"
+    "${API_URL}/api/webhooks/release"
 )
 
 # Parse output
