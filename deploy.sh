@@ -35,6 +35,8 @@ API_URL="https://www.adsgames.net"
 REGION="us-east-1"
 ZIP_NAME="${PROJECT_ID}-${VERSION}.zip"
 
+echo -e "Deploying ${PROJECT_ID} version ${VERSION} for platform ${PLATFORM}"
+
 # Base url
 URL="https://${BUCKET}.${REGION}.linodeobjects.com/games/${PROJECT_ID}"
 
@@ -61,6 +63,8 @@ DATA="{ \
   \"url\":\"${URL}\" \
 }"
 
+echo -e "Submitting release with payload: ${DATA}"
+
 # Send payload
 OUTPUT=$(
   curl \
@@ -74,7 +78,8 @@ OUTPUT=$(
 STATUS=$(echo $OUTPUT | jq -r .status)
 MESSAGE=$(echo $OUTPUT | jq -r .message)
 
-echo $MESSAGE
+echo -e "Response: ${MESSAGE}"
+echo -e "Status: ${STATUS}"
 
 if [ "$STATUS" != "201" ]; then
   exit 1
