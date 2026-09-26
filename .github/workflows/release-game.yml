@@ -148,9 +148,12 @@ jobs:
           msystem: UCRT64
           update: true
           install: make git
+          # SDL includes the system EGL and GLES headers when built with MinGW
           pacboy: >-
             toolchain:p
             cmake:p
+            egl-headers:p
+            gles-headers:p
 
       - name: Build Windows
         if: matrix.platform == 'WINDOWS'
