@@ -30,28 +30,46 @@ if [ -z "${BUILD_DIR}" ]; then
   exit 1
 fi
 
-BUCKET="ads-games"
+BUCKET="www-adsgames-net-data-prod"
 API_URL="https://www.adsgames.net"
-REGION="us-east-1"
 ZIP_NAME="${PROJECT_ID}-${VERSION}.zip"
+
+# Builds are uploaded to a version-scoped path, so they never change and can be
+# cached forever.
+CACHE_CONTROL="public, max-age=31536000, immutable"
 
 echo -e "Deploying ${PROJECT_ID} version ${VERSION} for platform ${PLATFORM}"
 
 # Base url
-URL="https://${BUCKET}.${REGION}.linodeobjects.com/games/${PROJECT_ID}"
+URL="https://storage.googleapis.com/${BUCKET}/games/${PROJECT_ID}"
 
-# Deploy to s3
+# Deploy to GCS (bucket is public via uniform bucket-level access)
 if [ "${PLATFORM}" = "WEB" ]
 then
   echo -e "Deploying web build"
-  s3cmd sync --no-mime-magic --guess-mime-type --acl-public ${BUILD_DIR} s3://${BUCKET}/games/${PROJECT_ID}/${VERSION}/
+  DEST="gs://${BUCKET}/games/${PROJECT_ID}/${VERSION}/"
+
+  # Content types are auto-detected per file extension; cache-control is applied
+  # to every object.
+  gcloud storage rsync --recursive \
+    --cache-control="${CACHE_CONTROL}" \
+    "${BUILD_DIR}" "${DEST}"
+
+  # WebAssembly must be served as application/wasm for streaming compilation;
+  # gcloud's extension detection does not guarantee this.
+  gcloud storage objects update --content-type="application/wasm" \
+    "${DEST}**.wasm" 2>/dev/null || true
+
   URL="${URL}/${VERSION}/${ENTRY}"
 else
   echo -e "Deploying downloadable build"
   cd ${BUILD_DIR}
   zip -r ../${ZIP_NAME} .
   cd ../
-  s3cmd put --no-mime-magic --guess-mime-type --acl-public ${ZIP_NAME} s3://${BUCKET}/games/${PROJECT_ID}/
+  gcloud storage cp \
+    --cache-control="${CACHE_CONTROL}" \
+    --content-type="application/zip" \
+    "${ZIP_NAME}" "gs://${BUCKET}/games/${PROJECT_ID}/"
   URL="${URL}/${ZIP_NAME}"
 fi
 

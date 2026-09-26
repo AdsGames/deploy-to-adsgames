@@ -8,12 +8,14 @@ inputs:
   version:
     description: "Version to Release"
     required: false
-  bucket-access-key:
-    description: "Access key for accessing S3"
-    required: true
-  bucket-secret-key:
-    description: "Secret key for accessing S3"
-    required: true
+  workload-identity-provider:
+    description: "Full resource name of the GitHub OIDC workload identity provider"
+    required: false
+    default: "projects/324306161120/locations/global/workloadIdentityPools/github/providers/github-actions"
+  service-account:
+    description: "Service account to impersonate for bucket uploads"
+    required: false
+    default: "adsgames-games-deploy@foxd-io.iam.gserviceaccount.com"
   build-dir:
     description: "Folder to upload"
     required: true
@@ -32,13 +34,14 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Set up S3cmd cli tool
-      uses: s3-actions/s3cmd@v1.5.0
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
       with:
-        provider: linode
-        region: us-east-1
-        access_key: ${{ inputs.bucket-access-key }}
-        secret_key: ${{ inputs.bucket-secret-key }}
+        workload_identity_provider: ${{ inputs.workload-identity-provider }}
+        service_account: ${{ inputs.service-account }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
 
     - name: Deploy game
       shell: bash
