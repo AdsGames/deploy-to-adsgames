@@ -50,10 +50,11 @@ then
   DEST="gs://${BUCKET}/games/${PROJECT_ID}/${VERSION}/"
 
   # Content types are auto-detected per file extension; cache-control is applied
-  # to every object.
-  gcloud storage rsync --recursive \
+  # to every object. The destination is version-scoped and always new, so a
+  # plain copy is used instead of rsync to skip the destination listing.
+  gcloud storage cp --recursive \
     --cache-control="${CACHE_CONTROL}" \
-    "${BUILD_DIR}" "${DEST}"
+    "${BUILD_DIR%/}/*" "${DEST}"
 
   # WebAssembly must be served as application/wasm for streaming compilation;
   # gcloud's extension detection does not guarantee this.
