@@ -147,7 +147,7 @@ jobs:
         with:
           msystem: UCRT64
           update: true
-          install: make
+          install: make git
           pacboy: >-
             toolchain:p
             cmake:p
@@ -156,6 +156,8 @@ jobs:
         if: matrix.platform == 'WINDOWS'
         shell: msys2 {0}
         run: |
+          # Some dependencies ship test files past the 260 character limit
+          git config --global core.longpaths true
           cmake --preset "${{ inputs.preset }}" -DCMAKE_EXE_LINKER_FLAGS="-static"
           cmake --build --preset "${{ inputs.preset }}"
 
