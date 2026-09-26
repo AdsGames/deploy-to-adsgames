@@ -10,7 +10,8 @@ project-id
 
 version
 
-> Version of the game to deploy (i.e. 1.0.0)
+> (optional) Version of the game to deploy (i.e. v1.0.0). Defaults to the pushed
+> tag, else `git describe --tags --always`.
 
 platform
 
@@ -18,7 +19,11 @@ platform
 
 build-dir
 
-> Directory to deploy to (i.e. ./dist)
+> Directory to deploy (i.e. ./dist)
+
+api-key
+
+> A.D.S. Games API key, usually `${{ secrets.ADSGAMES_API_KEY }}`
 
 entry
 
@@ -31,6 +36,63 @@ workload-identity-provider
 service-account
 
 > (optional) Service account to impersonate for bucket uploads. Defaults to the AdsGames games-deploy SA.
+
+## Output
+
+Web builds are uploaded to `games/<project-id>/<version>/` and served from
+`entry`. Other platforms are zipped to
+`games/<project-id>/<project-id>-<version>-<platform>.zip`, so each platform of a
+release gets its own download.
+
+## Runners
+
+The action runs on **Linux runners only**: it needs `zip`, `jq` and `gcloud`,
+which are not on every Windows and macOS runner. Build each platform on its own
+OS, pass the build to an `ubuntu` job as an artifact, and deploy from there:
+
+```yaml
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - platform: WINDOWS
+            os: windows-latest
+          - platform: MAC
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      # ... build into build/release/target ...
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-${{ matrix.platform }}
+          path: build/release/target/
+
+  deploy:
+    needs: build
+    strategy:
+      matrix:
+        platform: [WINDOWS, MAC]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: build-${{ matrix.platform }}
+          path: build
+      - uses: adsgames/deploy-to-adsgames@v1
+        with:
+          project-id: mygame
+          platform: ${{ matrix.platform }}
+          build-dir: build
+          api-key: ${{ secrets.ADSGAMES_API_KEY }}
+```
+
+`actions/upload-artifact` drops file permissions. Pack the build with `tar`
+before uploading if executables must keep their executable bit.
 
 ## Authentication
 
