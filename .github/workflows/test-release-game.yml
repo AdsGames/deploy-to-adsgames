@@ -1,0 +1,21 @@
+# Checks the reusable release workflow still builds a real game on every
+# platform. Nothing is deployed.
+name: Test Release Game
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/release-game.yml"
+      - ".github/workflows/test-release-game.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  minijim:
+    uses: ./.github/workflows/release-game.yml
+    with:
+      project-id: minijim
+      repository: adsgames/minijim
+      deploy: false
