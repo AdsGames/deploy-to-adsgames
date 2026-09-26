@@ -15,6 +15,11 @@ permissions:
 jobs:
   minijim:
     uses: ./.github/workflows/release-game.yml
+    # The deploy job asks for id-token, it is skipped here but GitHub checks
+    # the permissions before the run starts
+    permissions:
+      id-token: write
+      contents: read
     with:
       project-id: minijim
       repository: adsgames/minijim
