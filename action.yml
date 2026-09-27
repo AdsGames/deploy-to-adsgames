@@ -1,12 +1,12 @@
 name: "Deploy to A.D.S. Games"
-description: "Deploy files to storage bucket, and send a release message"
+description: "Deploy files to storage bucket, and send a release message. Runs on Linux runners."
 
 inputs:
   project-id:
     description: "A.D.S. Games Game Name"
     required: true
   version:
-    description: "Version to Release"
+    description: "Version to release, defaults to the pushed tag or git describe"
     required: false
   workload-identity-provider:
     description: "Full resource name of the GitHub OIDC workload identity provider"
@@ -21,7 +21,7 @@ inputs:
     required: true
     default: build/
   platform:
-    description: "Game Platform"
+    description: "Game platform, one of WEB, WINDOWS, LINUX or MAC"
     required: true
   api-key:
     description: "A.D.S. Games API key"
@@ -56,4 +56,3 @@ runs:
         ENTRY: ${{ inputs.entry }}
         BUILD_DIR: ${{ inputs.build-dir }}
         API_KEY: ${{ inputs.api-key }}
-        BUILD_COMMAND: ${{ inputs.build-command }}
