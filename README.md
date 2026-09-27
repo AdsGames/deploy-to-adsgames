@@ -44,6 +44,47 @@ Web builds are uploaded to `games/<project-id>/<version>/` and served from
 `games/<project-id>/<project-id>-<version>-<platform>.zip`, so each platform of a
 release gets its own download.
 
+## Release workflow
+
+Games built with asw and CMake presets can use the reusable workflow instead of
+writing their own jobs. It builds each platform on its own OS and deploys every
+build from Linux:
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  release:
+    uses: adsgames/deploy-to-adsgames/.github/workflows/release-game.yml@v1
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      project-id: mygame
+    secrets:
+      ADSGAMES_API_KEY: ${{ secrets.ADSGAMES_API_KEY }}
+```
+
+| Input                | Default                                 | Use                                        |
+| -------------------- | --------------------------------------- | ------------------------------------------ |
+| `project-id`         | required                                | A.D.S. Games game slug                     |
+| `platforms`          | `["WEB", "LINUX", "WINDOWS", "MAC"]`    | JSON list of platforms to build            |
+| `deploy`             | `true`                                  | `false` only checks that the game builds   |
+| `version`            | the pushed tag                          | Version to release                         |
+| `preset`             | `release`                               | CMake configure and build preset           |
+| `output-dir`         | `build/release/target`                  | Folder with the game and its assets        |
+| `entry`              | `index.html`                            | Page to serve for web builds               |
+| `emscripten-version` | `4.0.6`                                 | Emscripten SDK for web builds              |
+| `repository`, `ref`  | the calling repository                  | Build another repository, used for testing |
+
+Windows builds use MSYS2 UCRT64 and link statically, so no runtime DLLs need
+shipping. Mac builds are not signed or bundled as an `.app`.
+
 ## Runners
 
 The action runs on **Linux runners only**: it needs `zip`, `jq` and `gcloud`,

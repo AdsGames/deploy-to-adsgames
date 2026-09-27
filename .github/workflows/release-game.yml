@@ -1,0 +1,222 @@
+# Builds an asw (CMake preset) game for each platform and deploys the builds
+# to A.D.S. Games. Call it from a game repository:
+#
+#   jobs:
+#     release:
+#       uses: adsgames/deploy-to-adsgames/.github/workflows/release-game.yml@v1
+#       permissions:
+#         id-token: write
+#         contents: read
+#       with:
+#         project-id: mygame
+#       secrets:
+#         ADSGAMES_API_KEY: ${{ secrets.ADSGAMES_API_KEY }}
+
+name: Release Game
+
+on:
+  workflow_call:
+    inputs:
+      project-id:
+        description: "A.D.S. Games game slug, e.g. jimfarm"
+        type: string
+        required: true
+      platforms:
+        description: 'JSON list of platforms to build, e.g. ["WEB", "WINDOWS"]'
+        type: string
+        default: '["WEB", "LINUX", "WINDOWS", "MAC"]'
+      deploy:
+        description: "Deploy the builds, false only checks that they build"
+        type: boolean
+        default: true
+      version:
+        description: "Version to release, defaults to the pushed tag"
+        type: string
+        default: ""
+      preset:
+        description: "CMake configure and build preset"
+        type: string
+        default: release
+      output-dir:
+        description: "Folder the build puts the game and its assets in"
+        type: string
+        default: build/release/target
+      entry:
+        description: "Page to serve for web builds"
+        type: string
+        default: index.html
+      emscripten-version:
+        description: "Emscripten SDK version for web builds"
+        type: string
+        default: 4.0.6
+      repository:
+        description: "Repository to build, defaults to the calling one"
+        type: string
+        default: ""
+      ref:
+        description: "Ref of repository to build, defaults to the calling one"
+        type: string
+        default: ""
+    secrets:
+      ADSGAMES_API_KEY:
+        description: "A.D.S. Games API key, only needed when deploying"
+        required: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.platforms) }}
+    runs-on: >-
+      ${{ matrix.platform == 'WINDOWS' && 'windows-latest'
+      || matrix.platform == 'MAC' && 'macos-latest'
+      || 'ubuntu-latest' }}
+    env:
+      # CPM keeps downloaded dependencies here, cached between runs
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v6
+        with:
+          path: .cpm-cache
+          key: cpm-${{ matrix.platform }}-${{ hashFiles('CMakeLists.txt', 'cmake/**') }}
+          restore-keys: cpm-${{ matrix.platform }}-
+
+      # Web
+
+      - name: Setup Emscripten
+        if: matrix.platform == 'WEB'
+        uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: ${{ inputs.emscripten-version }}
+          actions-cache-folder: emsdk-cache
+
+      - name: Build web
+        if: matrix.platform == 'WEB'
+        shell: bash
+        run: |
+          embuilder build harfbuzz
+          emcmake cmake --preset "${{ inputs.preset }}"
+          cmake --build --preset "${{ inputs.preset }}"
+
+      # Linux, SDL builds from source and needs the system headers
+
+      - name: Install Linux libraries
+        if: matrix.platform == 'LINUX'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libasound2-dev libpulse-dev libpipewire-0.3-dev \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+            libxi-dev libxss-dev libxtst-dev libxkbcommon-dev \
+            libwayland-dev wayland-protocols libdecor-0-dev \
+            libdrm-dev libgbm-dev libgl1-mesa-dev libegl1-mesa-dev \
+            libdbus-1-dev libudev-dev libibus-1.0-dev
+
+      - name: Build Linux
+        if: matrix.platform == 'LINUX'
+        shell: bash
+        run: |
+          cmake --preset "${{ inputs.preset }}"
+          cmake --build --preset "${{ inputs.preset }}"
+
+      # Mac
+
+      - name: Build Mac
+        if: matrix.platform == 'MAC'
+        shell: bash
+        run: |
+          cmake --preset "${{ inputs.preset }}"
+          cmake --build --preset "${{ inputs.preset }}"
+
+      # Windows, MinGW linked statically so no runtime DLLs need shipping
+
+      - name: Setup MSYS2
+        if: matrix.platform == 'WINDOWS'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: make git
+          # SDL includes the system EGL and GLES headers when built with MinGW
+          pacboy: >-
+            toolchain:p
+            cmake:p
+            egl-headers:p
+            gles-headers:p
+
+      - name: Build Windows
+        if: matrix.platform == 'WINDOWS'
+        shell: msys2 {0}
+        run: |
+          # Some dependencies ship test files past the 260 character limit
+          git config --global core.longpaths true
+          cmake --preset "${{ inputs.preset }}" -DCMAKE_EXE_LINKER_FLAGS="-static"
+          cmake --build --preset "${{ inputs.preset }}"
+
+      # Tar keeps the executable bit, artifacts on their own do not
+
+      - name: Pack build
+        shell: bash
+        run: tar -C "${{ inputs.output-dir }}" -cf "build-${{ matrix.platform }}.tar" .
+
+      - name: Upload build
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-${{ matrix.platform }}
+          path: build-${{ matrix.platform }}.tar
+          retention-days: 7
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy ${{ matrix.platform }}
+    if: inputs.deploy
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.platforms) }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      # Full history so the version can fall back to git describe
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Download build
+        uses: actions/download-artifact@v8
+        with:
+          name: build-${{ matrix.platform }}
+          path: artifact
+
+      - name: Unpack build
+        shell: bash
+        run: |
+          mkdir -p release-build
+          tar -C release-build -xf "artifact/build-${{ matrix.platform }}.tar"
+
+      - name: Deploy to A.D.S. Games
+        uses: adsgames/deploy-to-adsgames@v1
+        with:
+          project-id: ${{ inputs.project-id }}
+          version: ${{ inputs.version }}
+          platform: ${{ matrix.platform }}
+          build-dir: release-build
+          entry: ${{ inputs.entry }}
+          api-key: ${{ secrets.ADSGAMES_API_KEY }}
