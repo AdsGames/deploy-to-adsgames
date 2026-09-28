@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/AdsGames/deploy-to-adsgames/v1/manifest/schema.json",
+  "title": "A.D.S. Games manifest",
+  "description": "Leaderboards and achievements of a game, synced to the play service on release",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "leaderboards": {
+      "description": "Boards in display order. Boards left out are archived, their scores are kept",
+      "type": "array",
+      "items": { "$ref": "#/$defs/leaderboard" }
+    },
+    "achievements": {
+      "description": "Achievements in display order. Achievements left out are archived, unlocks are kept",
+      "type": "array",
+      "items": { "$ref": "#/$defs/achievement" }
+    }
+  },
+  "$defs": {
+    "key": {
+      "description": "Permanent id the game uses. Never rename or reuse a key",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "leaderboard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "title"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "order": {
+          "description": "asc: lower is better (times). desc: higher is better (points). Can not change once the board has scores",
+          "enum": ["asc", "desc"],
+          "default": "desc"
+        },
+        "format": {
+          "description": "How clients show values. time_ms values are milliseconds",
+          "enum": ["integer", "time_ms"],
+          "default": "integer"
+        },
+        "minValue": { "description": "Lowest value accepted", "type": "integer" },
+        "maxValue": { "description": "Highest value accepted", "type": "integer" }
+      }
+    },
+    "achievement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "title"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "icon": {
+          "description": "Image path relative to the manifest (png, jpg, webp, gif or svg), or a full URL",
+          "type": "string",
+          "maxLength": 500
+        },
+        "hidden": {
+          "description": "Show as \"Hidden achievement\" until unlocked",
+          "type": "boolean",
+          "default": false
+        },
+        "points": { "type": "integer", "minimum": 0, "maximum": 1000, "default": 10 }
+      }
+    }
+  }
+}

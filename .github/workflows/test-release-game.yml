@@ -21,6 +21,6 @@ jobs:
       id-token: write
       contents: read
     with:
-      project-id: minijim
+      project-id: mini-jim
       repository: adsgames/minijim
       deploy: false

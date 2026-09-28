@@ -70,20 +70,102 @@ jobs:
       ADSGAMES_API_KEY: ${{ secrets.ADSGAMES_API_KEY }}
 ```
 
-| Input                | Default                                 | Use                                        |
-| -------------------- | --------------------------------------- | ------------------------------------------ |
-| `project-id`         | required                                | A.D.S. Games game slug                     |
-| `platforms`          | `["WEB", "LINUX", "WINDOWS", "MAC"]`    | JSON list of platforms to build            |
-| `deploy`             | `true`                                  | `false` only checks that the game builds   |
-| `version`            | the pushed tag                          | Version to release                         |
-| `preset`             | `release`                               | CMake configure and build preset           |
-| `output-dir`         | `build/release/target`                  | Folder with the game and its assets        |
-| `entry`              | `index.html`                            | Page to serve for web builds               |
-| `emscripten-version` | `4.0.6`                                 | Emscripten SDK for web builds              |
-| `repository`, `ref`  | the calling repository                  | Build another repository, used for testing |
+| Input                   | Default                              | Use                                        |
+| ----------------------- | ------------------------------------ | ------------------------------------------ |
+| `project-id`            | required                             | A.D.S. Games game slug                     |
+| `platforms`             | `["WEB", "LINUX", "WINDOWS", "MAC"]` | JSON list of platforms to build            |
+| `deploy`                | `true`                               | `false` only checks that the game builds   |
+| `version`               | the pushed tag                       | Version to release                         |
+| `preset`                | `release`                            | CMake configure and build preset           |
+| `output-dir`            | `build/release/target`               | Folder with the game and its assets        |
+| `entry`                 | `index.html`                         | Page to serve for web builds               |
+| `emscripten-version`    | `6.0.10`                             | Emscripten SDK for web builds              |
+| `repository`, `ref`     | the calling repository               | Build another repository, used for testing |
+| `manifest`              | `adsgames.json`                      | Leaderboards and achievements manifest     |
+| `manifest-environments` | `dev prod`                           | Play environments the manifest syncs to    |
 
 Windows builds use MSYS2 UCRT64 and link statically, so no runtime DLLs need
 shipping. Mac builds are not signed or bundled as an `.app`.
+
+## Leaderboards and achievements
+
+A game defines its leaderboards and achievements in `adsgames.json` at the root
+of its repository. The release workflow syncs it to the
+[play](https://github.com/AdsGames/play) service before the builds deploy:
+
+- **Release tags** sync to dev (`play.beta.adsgames.net`) and prod
+  (`play.adsgames.net`). If play rejects the manifest, the release stops before
+  any build ships.
+- **Pull requests** (`deploy: false`) run a dry run. It checks the manifest
+  against the live data and lists what a release would archive, without saving
+  anything. It is skipped with a warning when the API key is not available,
+  for example on pull requests from forks.
+- Repositories without `adsgames.json` skip the step.
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/AdsGames/deploy-to-adsgames/v1/manifest/schema.json",
+  "leaderboards": [
+    {
+      "key": "level-1",
+      "title": "Level 1",
+      "order": "asc",
+      "format": "time_ms",
+      "minValue": 1000
+    }
+  ],
+  "achievements": [
+    {
+      "key": "no-deaths",
+      "title": "Untouchable",
+      "description": "Finish a level without dying",
+      "icon": "assets/achievements/no-deaths.png",
+      "points": 25
+    }
+  ]
+}
+```
+
+The `$schema` line gives editors completion and checks, see
+[manifest/schema.json](manifest/schema.json) for every field. Icons are paths
+relative to the manifest. They are uploaded to the game bucket under a content
+hash, so a changed icon gets a new URL.
+
+The manifest is the full set of definitions. Anything left out is **archived**:
+hidden, but its scores and unlocks are kept, and it is restored if you add it
+back. The run lists archived keys as warnings.
+
+Rules:
+
+- Never rename or reuse a `key`. Scores and unlocks are stored against it.
+  Change the `title` instead.
+- A leaderboard's `order` can not change once it has scores. Use a new key.
+
+To sync without a release, for example to try new achievements on dev, add a
+workflow that calls `sync-manifest.yml`:
+
+```yaml
+name: Sync Manifest
+
+on:
+  workflow_dispatch:
+
+jobs:
+  manifest:
+    uses: adsgames/deploy-to-adsgames/.github/workflows/sync-manifest.yml@v1
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      project-id: mygame
+      environments: dev
+    secrets:
+      ADSGAMES_API_KEY: ${{ secrets.ADSGAMES_API_KEY }}
+```
+
+Other workflows can use the action directly:
+`adsgames/deploy-to-adsgames/manifest@v1` with `project-id`, `api-key`, and
+optionally `manifest`, `environments` and `dry-run`.
 
 ## Runners
 
