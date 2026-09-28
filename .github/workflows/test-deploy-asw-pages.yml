@@ -1,0 +1,26 @@
+# Checks the reusable GitHub Pages workflow still builds a real game for the
+# web. Nothing is deployed.
+name: Test Deploy asw to Pages
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/deploy-asw-pages.yml"
+      - ".github/workflows/test-deploy-asw-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  minijim:
+    uses: ./.github/workflows/deploy-asw-pages.yml
+    # The deploy job asks for pages and id-token, it is skipped here but
+    # GitHub checks the permissions before the run starts
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    with:
+      repository: adsgames/minijim
+      deploy: false

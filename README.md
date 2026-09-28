@@ -87,6 +87,84 @@ jobs:
 Windows builds use MSYS2 UCRT64 and link statically, so no runtime DLLs need
 shipping. Mac builds are not signed or bundled as an `.app`.
 
+## asw Pages workflow
+
+`deploy-asw-pages.yml` builds the web version of an asw game with
+Emscripten and deploys it to the game repository's own GitHub Pages. It is
+separate from A.D.S. Games releases, useful as a preview of the main branch:
+
+```yaml
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  pages:
+    uses: adsgames/deploy-to-adsgames/.github/workflows/deploy-asw-pages.yml@v1
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    with:
+      # Pull requests only check that the web build works
+      deploy: ${{ github.event_name == 'push' }}
+```
+
+| Input                | Default                | Use                                         |
+| -------------------- | ---------------------- | ------------------------------------------- |
+| `deploy`             | `true`                 | `false` only checks that the game builds    |
+| `preset`             | `release`              | CMake configure and build preset            |
+| `output-dir`         | `build/release/target` | Folder with the game and its assets         |
+| `emscripten-version` | `6.0.10`               | Emscripten SDK                              |
+| `repository`, `ref`  | the calling repository | Build another repository, used for testing  |
+
+The repository must have GitHub Pages set to deploy from GitHub Actions.
+
+## itch.io workflow
+
+`deploy-itch.yml` pushes a release to itch.io with
+[butler](https://itch.io/docs/butler/). It does not build: it takes the
+`build-<PLATFORM>` artifacts that `release-game.yml` uploads in the same run.
+Add it as a job after the release, so releases go to A.D.S. Games first and
+then to itch.io:
+
+```yaml
+jobs:
+  release:
+    uses: adsgames/deploy-to-adsgames/.github/workflows/release-game.yml@v1
+    # ... as above
+
+  itch:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: adsgames/deploy-to-adsgames/.github/workflows/deploy-itch.yml@v1
+    with:
+      itch-project: ads-games/mygame
+    secrets:
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+```
+
+| Input            | Default                                                                  | Use                                     |
+| ---------------- | ------------------------------------------------------------------------ | --------------------------------------- |
+| `itch-project`   | required                                                                 | itch.io `user/game`                     |
+| `platforms`      | `["WEB", "LINUX", "WINDOWS", "MAC"]`                                     | Platforms to push, all must be built    |
+| `channels`       | `{"WEB": "html5", "LINUX": "linux", "WINDOWS": "windows", "MAC": "mac"}` | itch.io channel for each platform       |
+| `version`        | the pushed tag, else the commit                                          | Version shown on itch.io                |
+| `butler-version` | `15.31.0`                                                                | butler release to push with             |
+
+The `BUTLER_API_KEY` secret is an itch.io API key. On itch.io, mark the web
+upload as "played in the browser" once after its first push.
+
 ## Leaderboards and achievements
 
 A game defines its leaderboards and achievements in `adsgames.json` at the root

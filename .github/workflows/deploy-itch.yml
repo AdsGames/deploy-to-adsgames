@@ -1,0 +1,86 @@
+# Pushes a game's builds to itch.io with butler. It builds nothing: it takes
+# the build-<PLATFORM> artifacts that release-game.yml uploads in the same run,
+# so call it after the release job:
+#
+#   jobs:
+#     release:
+#       uses: adsgames/deploy-to-adsgames/.github/workflows/release-game.yml@v1
+#       ...
+#     itch:
+#       needs: release
+#       if: startsWith(github.ref, 'refs/tags/v')
+#       uses: adsgames/deploy-to-adsgames/.github/workflows/deploy-itch.yml@v1
+#       with:
+#         itch-project: ads-games/mygame
+#       secrets:
+#         BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+
+name: Deploy itch.io
+
+on:
+  workflow_call:
+    inputs:
+      itch-project:
+        description: "itch.io user and game, e.g. ads-games/mygame"
+        type: string
+        required: true
+      platforms:
+        description: 'JSON list of platforms to push, e.g. ["WEB", "WINDOWS"]'
+        type: string
+        default: '["WEB", "LINUX", "WINDOWS", "MAC"]'
+      channels:
+        description: "JSON map of platform to itch.io channel"
+        type: string
+        default: '{"WEB": "html5", "LINUX": "linux", "WINDOWS": "windows", "MAC": "mac"}'
+      version:
+        description: "Version shown on itch.io, defaults to the pushed tag or commit"
+        type: string
+        default: ""
+      butler-version:
+        description: "butler version to push with"
+        type: string
+        default: 15.31.0
+    secrets:
+      BUTLER_API_KEY:
+        description: "itch.io API key for butler"
+        required: true
+
+jobs:
+  push:
+    name: Push ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.platforms) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build
+        uses: actions/download-artifact@v8
+        with:
+          name: build-${{ matrix.platform }}
+          path: artifact
+
+      # Tar keeps the executable bit, artifacts on their own do not
+      - name: Unpack build
+        shell: bash
+        run: |
+          mkdir -p itch-build
+          tar -C itch-build -xf "artifact/build-${{ matrix.platform }}.tar"
+
+      - name: Install butler
+        shell: bash
+        run: |
+          curl -sfL -o butler.zip \
+            "https://broth.itch.zone/butler/linux-amd64/${{ inputs.butler-version }}/archive/default"
+          mkdir -p "$RUNNER_TEMP/butler"
+          unzip -q butler.zip -d "$RUNNER_TEMP/butler"
+          chmod +x "$RUNNER_TEMP/butler/butler"
+          echo "$RUNNER_TEMP/butler" >> "$GITHUB_PATH"
+
+      - name: Push to itch.io
+        shell: bash
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          TARGET: ${{ inputs.itch-project }}:${{ fromJSON(inputs.channels)[matrix.platform] }}
+          VERSION: ${{ inputs.version || (github.ref_type == 'tag' && github.ref_name) || github.sha }}
+        run: butler push itch-build "$TARGET" --userversion "$VERSION"
