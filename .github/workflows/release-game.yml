@@ -48,7 +48,15 @@ on:
       emscripten-version:
         description: "Emscripten SDK version for web builds"
         type: string
-        default: 4.0.6
+        default: 6.0.10
+      manifest:
+        description: "Leaderboards and achievements manifest, skipped when missing"
+        type: string
+        default: adsgames.json
+      manifest-environments:
+        description: "Space separated play environments to sync the manifest to, dev and/or prod"
+        type: string
+        default: "dev prod"
       repository:
         description: "Repository to build, defaults to the calling one"
         type: string
@@ -178,10 +186,35 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  # Syncs adsgames.json before the builds deploy, so a new build never ships
+  # before its leaderboards and achievements exist. Builds that only check
+  # (pull requests) run a dry run instead, which saves nothing.
+  manifest:
+    name: Manifest
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
+
+      - name: Sync manifest
+        uses: adsgames/deploy-to-adsgames/manifest@v1
+        with:
+          project-id: ${{ inputs.project-id }}
+          manifest: ${{ inputs.manifest }}
+          environments: ${{ inputs.manifest-environments }}
+          dry-run: ${{ !inputs.deploy }}
+          api-key: ${{ secrets.ADSGAMES_API_KEY }}
+
   deploy:
     name: Deploy ${{ matrix.platform }}
     if: inputs.deploy
-    needs: build
+    needs: [build, manifest]
     strategy:
       fail-fast: false
       matrix:

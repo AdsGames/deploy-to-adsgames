@@ -1,0 +1,62 @@
+# Syncs a game's adsgames.json on its own, e.g. to try new achievements on dev
+# before a release. Call it from a game repository:
+#
+#   on:
+#     workflow_dispatch:
+#
+#   jobs:
+#     manifest:
+#       uses: adsgames/deploy-to-adsgames/.github/workflows/sync-manifest.yml@v1
+#       permissions:
+#         id-token: write
+#         contents: read
+#       with:
+#         project-id: mygame
+#       secrets:
+#         ADSGAMES_API_KEY: ${{ secrets.ADSGAMES_API_KEY }}
+
+name: Sync Manifest
+
+on:
+  workflow_call:
+    inputs:
+      project-id:
+        description: "A.D.S. Games game slug, e.g. mini-jim"
+        type: string
+        required: true
+      manifest:
+        description: "Leaderboards and achievements manifest"
+        type: string
+        default: adsgames.json
+      environments:
+        description: "Space separated play environments, dev and/or prod"
+        type: string
+        default: dev
+      dry-run:
+        description: "Only check the manifest and report what would change"
+        type: boolean
+        default: false
+    secrets:
+      ADSGAMES_API_KEY:
+        description: "A.D.S. Games API key"
+        required: true
+
+jobs:
+  sync:
+    name: Sync manifest
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Sync manifest
+        uses: adsgames/deploy-to-adsgames/manifest@v1
+        with:
+          project-id: ${{ inputs.project-id }}
+          manifest: ${{ inputs.manifest }}
+          environments: ${{ inputs.environments }}
+          dry-run: ${{ inputs.dry-run }}
+          api-key: ${{ secrets.ADSGAMES_API_KEY }}
