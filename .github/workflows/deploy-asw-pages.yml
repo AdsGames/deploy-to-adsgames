@@ -3,7 +3,7 @@
 #
 #   jobs:
 #     pages:
-#       uses: adsgames/deploy-to-adsgames/.github/workflows/deploy-github-pages.yml@v1
+#       uses: adsgames/deploy-to-adsgames/.github/workflows/deploy-asw-pages.yml@v1
 #       permissions:
 #         contents: read
 #         pages: write
@@ -11,7 +11,7 @@
 #       with:
 #         deploy: ${{ github.event_name == 'push' }}
 
-name: Deploy GitHub Pages
+name: Deploy asw to Pages
 
 on:
   workflow_call:

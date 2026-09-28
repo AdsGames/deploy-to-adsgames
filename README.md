@@ -87,9 +87,9 @@ jobs:
 Windows builds use MSYS2 UCRT64 and link statically, so no runtime DLLs need
 shipping. Mac builds are not signed or bundled as an `.app`.
 
-## GitHub Pages workflow
+## asw Pages workflow
 
-`deploy-github-pages.yml` builds the web version of an asw game with
+`deploy-asw-pages.yml` builds the web version of an asw game with
 Emscripten and deploys it to the game repository's own GitHub Pages. It is
 separate from A.D.S. Games releases, useful as a preview of the main branch:
 
@@ -110,7 +110,7 @@ concurrency:
 
 jobs:
   pages:
-    uses: adsgames/deploy-to-adsgames/.github/workflows/deploy-github-pages.yml@v1
+    uses: adsgames/deploy-to-adsgames/.github/workflows/deploy-asw-pages.yml@v1
     permissions:
       contents: read
       pages: write
