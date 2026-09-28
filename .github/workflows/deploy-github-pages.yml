@@ -1,0 +1,103 @@
+# Builds an asw (CMake preset) game for the web with Emscripten and deploys it
+# to the calling repository's GitHub Pages. Call it from a game repository:
+#
+#   jobs:
+#     pages:
+#       uses: adsgames/deploy-to-adsgames/.github/workflows/deploy-github-pages.yml@v1
+#       permissions:
+#         contents: read
+#         pages: write
+#         id-token: write
+#       with:
+#         deploy: ${{ github.event_name == 'push' }}
+
+name: Deploy GitHub Pages
+
+on:
+  workflow_call:
+    inputs:
+      deploy:
+        description: "Deploy to GitHub Pages, false only checks that the web build works"
+        type: boolean
+        default: true
+      preset:
+        description: "CMake configure and build preset"
+        type: string
+        default: release
+      output-dir:
+        description: "Folder the build puts the game and its assets in"
+        type: string
+        default: build/release/target
+      emscripten-version:
+        description: "Emscripten SDK version"
+        type: string
+        default: 6.0.10
+      repository:
+        description: "Repository to build, defaults to the calling one"
+        type: string
+        default: ""
+      ref:
+        description: "Ref of repository to build, defaults to the calling one"
+        type: string
+        default: ""
+    outputs:
+      page-url:
+        description: "URL of the deployed page, empty when not deployed"
+        value: ${{ jobs.deploy.outputs.page-url }}
+
+jobs:
+  build:
+    name: Build web
+    runs-on: ubuntu-latest
+    env:
+      # CPM keeps downloaded dependencies here, cached between runs
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v6
+        with:
+          path: .cpm-cache
+          key: cpm-WEB-${{ hashFiles('CMakeLists.txt', 'cmake/**') }}
+          restore-keys: cpm-WEB-
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: ${{ inputs.emscripten-version }}
+          actions-cache-folder: emsdk-cache
+
+      - name: Build
+        shell: bash
+        run: |
+          embuilder build harfbuzz
+          emcmake cmake --preset "${{ inputs.preset }}"
+          cmake --build --preset "${{ inputs.preset }}"
+
+      - name: Upload build
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ inputs.output-dir }}
+
+  deploy:
+    name: Deploy
+    if: inputs.deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page-url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
