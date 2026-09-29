@@ -165,6 +165,7 @@ jobs:
             cmake:p
             egl-headers:p
             gles-headers:p
+            openssl:p
 
       - name: Build Windows
         if: matrix.platform == 'WINDOWS'
