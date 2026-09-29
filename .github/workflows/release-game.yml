@@ -84,6 +84,9 @@ jobs:
     env:
       # CPM keeps downloaded dependencies here, cached between runs
       CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+      # The presets use Makefiles, which build one file at a time unless told
+      # otherwise. Hosted runners have 3 to 4 cores.
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
     steps:
       - name: Checkout
         uses: actions/checkout@v7
