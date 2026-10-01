@@ -1,0 +1,233 @@
+# Builds a Haxe (Lime, OpenFL or HaxeFlixel) game for each platform and deploys
+# the builds to A.D.S. Games. Call it from a game repository:
+#
+#   jobs:
+#     release:
+#       uses: adsgames/deploy-to-adsgames/.github/workflows/release-haxe-game.yml@v1
+#       permissions:
+#         id-token: write
+#         contents: read
+#       with:
+#         project-id: mygame
+#       secrets:
+#         ADSGAMES_API_KEY: ${{ secrets.ADSGAMES_API_KEY }}
+
+name: Release Haxe Game
+
+on:
+  workflow_call:
+    inputs:
+      project-id:
+        description: "A.D.S. Games game slug, e.g. kikis-delivery-day"
+        type: string
+        required: true
+      platforms:
+        description: 'JSON list of platforms to build, e.g. ["WEB", "WINDOWS"]'
+        type: string
+        default: '["WEB", "LINUX", "WINDOWS", "MAC"]'
+      deploy:
+        description: "Deploy the builds, false only checks that they build"
+        type: boolean
+        default: true
+      version:
+        description: "Version to release, defaults to the pushed tag"
+        type: string
+        default: ""
+      haxe-version:
+        description: "Haxe version"
+        type: string
+        default: 4.3.7
+      haxelibs:
+        description: "Haxe libraries to install, one per line as name or name and version"
+        type: string
+        default: |
+          lime
+          openfl
+          flixel
+          flixel-addons
+      project-file:
+        description: "Lime project file"
+        type: string
+        default: Project.xml
+      export-dir:
+        description: "Lime export folder, the BUILD_DIR or app path of the project file"
+        type: string
+        default: export
+      entry:
+        description: "Page to serve for web builds"
+        type: string
+        default: index.html
+      manifest:
+        description: "Leaderboards and achievements manifest, skipped when missing"
+        type: string
+        default: adsgames.json
+      manifest-environments:
+        description: "Space separated play environments to sync the manifest to, dev and/or prod"
+        type: string
+        default: "dev prod"
+      repository:
+        description: "Repository to build, defaults to the calling one"
+        type: string
+        default: ""
+      ref:
+        description: "Ref of repository to build, defaults to the calling one"
+        type: string
+        default: ""
+    secrets:
+      ADSGAMES_API_KEY:
+        description: "A.D.S. Games API key, only needed when deploying"
+        required: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.platforms) }}
+    runs-on: >-
+      ${{ matrix.platform == 'WINDOWS' && 'windows-latest'
+      || matrix.platform == 'MAC' && 'macos-latest'
+      || 'ubuntu-latest' }}
+    env:
+      # Lime target and the folder it builds into, under export-dir
+      LIME_TARGET: >-
+        ${{ matrix.platform == 'WEB' && 'html5'
+        || matrix.platform == 'WINDOWS' && 'windows'
+        || matrix.platform == 'MAC' && 'mac'
+        || 'linux' }}
+      LIME_OUTPUT: >-
+        ${{ matrix.platform == 'WEB' && 'html5'
+        || matrix.platform == 'WINDOWS' && 'windows'
+        || matrix.platform == 'MAC' && 'macos'
+        || 'linux' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
+
+      # Caches the haxelib folder, keyed on the project file
+      - name: Setup Haxe
+        uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: ${{ inputs.haxe-version }}
+          cache-dependency-path: ${{ inputs.project-file }}
+
+      - name: Install Haxe libraries
+        shell: bash
+        env:
+          HAXELIBS: ${{ inputs.haxelibs }}
+        run: |
+          while read -r name version; do
+            [ -n "$name" ] || continue
+            haxelib install "$name" ${version:+"$version"} --always --quiet
+          done <<< "$HAXELIBS"
+
+      # Desktop builds compile to C++. Linux and Mac use the runner's
+      # compiler, Windows uses the preinstalled Visual Studio.
+      - name: Install hxcpp
+        if: matrix.platform != 'WEB'
+        shell: bash
+        run: haxelib install hxcpp --always --quiet
+
+      # hxcpp picks the SDK from the folder names itself and gets a version
+      # xcodebuild does not know on Xcode 26, so give it the default SDK's
+      - name: Set macOS SDK
+        if: matrix.platform == 'MAC'
+        shell: bash
+        run: |
+          version="$(xcrun --sdk macosx --show-sdk-version)"
+          sdk="$(xcode-select -p)/Platforms/MacOSX.platform/Developer/SDKs/MacOSX$version.sdk"
+          if [ ! -e "$sdk" ]; then
+            echo "::error::No macOS SDK at $sdk"
+            exit 1
+          fi
+          echo "MACOSX_VER=$version" >> "$GITHUB_ENV"
+
+      - name: Build
+        shell: bash
+        run: haxelib run lime build "${{ inputs.project-file }}" "$LIME_TARGET" -release
+
+      # Tar keeps the executable bit, artifacts on their own do not
+
+      - name: Pack build
+        shell: bash
+        run: tar -C "${{ inputs.export-dir }}/$LIME_OUTPUT/bin" -cf "build-${{ matrix.platform }}.tar" .
+
+      - name: Upload build
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-${{ matrix.platform }}
+          path: build-${{ matrix.platform }}.tar
+          retention-days: 7
+          if-no-files-found: error
+
+  # Syncs adsgames.json before the builds deploy, so a new build never ships
+  # before its leaderboards and achievements exist. Builds that only check
+  # (pull requests) run a dry run instead, which saves nothing.
+  manifest:
+    name: Manifest
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
+
+      - name: Sync manifest
+        uses: adsgames/deploy-to-adsgames/manifest@v1
+        with:
+          project-id: ${{ inputs.project-id }}
+          manifest: ${{ inputs.manifest }}
+          environments: ${{ inputs.manifest-environments }}
+          dry-run: ${{ !inputs.deploy }}
+          api-key: ${{ secrets.ADSGAMES_API_KEY }}
+
+  deploy:
+    name: Deploy ${{ matrix.platform }}
+    if: inputs.deploy
+    needs: [build, manifest]
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.platforms) }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      # Full history so the version can fall back to git describe
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Download build
+        uses: actions/download-artifact@v8
+        with:
+          name: build-${{ matrix.platform }}
+          path: artifact
+
+      - name: Unpack build
+        shell: bash
+        run: |
+          mkdir -p release-build
+          tar -C release-build -xf "artifact/build-${{ matrix.platform }}.tar"
+
+      - name: Deploy to A.D.S. Games
+        uses: adsgames/deploy-to-adsgames@v1
+        with:
+          project-id: ${{ inputs.project-id }}
+          version: ${{ inputs.version }}
+          platform: ${{ matrix.platform }}
+          build-dir: release-build
+          entry: ${{ inputs.entry }}
+          api-key: ${{ secrets.ADSGAMES_API_KEY }}
