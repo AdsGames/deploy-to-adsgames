@@ -87,6 +87,62 @@ jobs:
 Windows builds use MSYS2 UCRT64 and link statically, so no runtime DLLs need
 shipping. Mac builds are not signed or bundled as an `.app`.
 
+## Haxe release workflow
+
+Games built with Haxe and Lime (OpenFL, HaxeFlixel) use
+`release-haxe-game.yml`. It builds each platform with `lime build` on its own
+OS and deploys like the asw workflow:
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  release:
+    uses: adsgames/deploy-to-adsgames/.github/workflows/release-haxe-game.yml@v1
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      project-id: mygame
+    secrets:
+      ADSGAMES_API_KEY: ${{ secrets.ADSGAMES_API_KEY }}
+```
+
+| Input                   | Default                              | Use                                                   |
+| ----------------------- | ------------------------------------ | ----------------------------------------------------- |
+| `project-id`            | required                             | A.D.S. Games game slug                                |
+| `platforms`             | `["WEB", "LINUX", "WINDOWS", "MAC"]` | JSON list of platforms to build                       |
+| `deploy`                | `true`                               | `false` only checks that the game builds              |
+| `version`               | the pushed tag                       | Version to release                                    |
+| `haxe-version`          | `4.3.7`                              | Haxe version                                          |
+| `haxelibs`              | `lime openfl flixel flixel-addons`   | Libraries to install, one per line, `name [version]`  |
+| `project-file`          | `Project.xml`                        | Lime project file                                     |
+| `export-dir`            | `export`                             | Lime export folder (`BUILD_DIR` in the project file)  |
+| `entry`                 | `index.html`                         | Page to serve for web builds                          |
+| `repository`, `ref`     | the calling repository               | Build another repository, used for testing            |
+| `manifest`              | `adsgames.json`                      | Leaderboards and achievements manifest                |
+| `manifest-environments` | `dev prod`                           | Play environments the manifest syncs to               |
+
+Pin library versions with one library on each line:
+
+```yaml
+    with:
+      haxelibs: |
+        lime 8.3.1
+        openfl 9.5.1
+        flixel 6.1.2
+```
+
+Desktop builds compile to C++ with hxcpp, which is always installed for them.
+Windows builds use the runner's Visual Studio. Mac builds are an unsigned
+`.app`. The build artifacts have the same names as `release-game.yml`, so the
+itch.io workflow works after this workflow too.
+
 ## asw Pages workflow
 
 `deploy-asw-pages.yml` builds the web version of an asw game with

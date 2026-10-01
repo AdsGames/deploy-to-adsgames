@@ -1,0 +1,26 @@
+# Checks the reusable Haxe release workflow still builds a real game on every
+# platform. Nothing is deployed.
+name: Test Release Haxe Game
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/release-haxe-game.yml"
+      - ".github/workflows/test-release-haxe-game.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kikis-delivery-day:
+    uses: ./.github/workflows/release-haxe-game.yml
+    # The deploy job asks for id-token, it is skipped here but GitHub checks
+    # the permissions before the run starts
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      project-id: kikis-delivery-day
+      repository: adsgames/ollie-and-kiki
+      deploy: false
