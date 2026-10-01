@@ -132,6 +132,20 @@ jobs:
         shell: bash
         run: haxelib install hxcpp --always --quiet
 
+      # hxcpp picks the SDK from the folder names itself and gets a version
+      # xcodebuild does not know on Xcode 26, so give it the default SDK's
+      - name: Set macOS SDK
+        if: matrix.platform == 'MAC'
+        shell: bash
+        run: |
+          version="$(xcrun --sdk macosx --show-sdk-version)"
+          sdk="$(xcode-select -p)/Platforms/MacOSX.platform/Developer/SDKs/MacOSX$version.sdk"
+          if [ ! -e "$sdk" ]; then
+            echo "::error::No macOS SDK at $sdk"
+            exit 1
+          fi
+          echo "MACOSX_VER=$version" >> "$GITHUB_ENV"
+
       - name: Build
         shell: bash
         run: haxelib run lime build "${{ inputs.project-file }}" "$LIME_TARGET" -release
